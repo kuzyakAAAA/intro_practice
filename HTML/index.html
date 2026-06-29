@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Instacart Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 960px; margin: 30px auto; padding: 0 16px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    input, button { padding: 10px 12px; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f3f3f3; }
+    .muted { color: #666; }
+    .ok { color: #0a7a2f; font-weight: 700; }
+    .error { color: #b00020; font-weight: 700; }
+    pre { white-space: pre-wrap; background: #f8f8f8; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Instacart demo: Loginom + Flask + GigaChat</h1>
+
+  <div class="card">
+    <h2>1. Авторизация клиента</h2>
+    <form method="post" action="/login">
+      <input type="number" name="user_id" placeholder="Введите user_id" required>
+      <button type="submit">Авторизоваться</button>
+    </form>
+    {% if user_id %}
+      <p class="ok">Текущий клиент: {{ user_id }}</p>
+      <form method="post" action="/logout">
+        <button type="submit">Выйти</button>
+      </form>
+    {% else %}
+      <p class="muted">Клиент не выбран</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>2. Демо-сервис</h2>
+    <p class="muted">Получить топ-10 товаров клиента из Loginom и передать их в промпт GigaChat.</p>
+    <form method="post" action="/history">
+      <button type="submit">Запустить анализ</button>
+    </form>
+  </div>
+
+  {% if error %}
+    <div class="card"><p class="error">{{ error }}</p></div>
+  {% endif %}
+
+  {% if products %}
+    <div class="card">
+      <h2>3. Топ-10 товаров клиента</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Товар</th>
+            <th>Aisle</th>
+            <th>Department</th>
+            <th>Department (RU)</th>
+            <th>Order count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in products %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ p.product_name }}</td>
+            <td>{{ p.aisle }}</td>
+            <td>{{ p.department }}</td>
+            <td>{{ p.department_rus }}</td>
+            <td>{{ p.order_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if prompt_text %}
+    <div class="card">
+      <h2>4. Текст, который ушёл в промпт</h2>
+      <pre>{{ prompt_text }}</pre>
+    </div>
+  {% endif %}
+
+  {% if recommendation %}
+    <div class="card">
+      <h2>5. Ответ GigaChat</h2>
+      <pre>{{ recommendation }}</pre>
+    </div>
+  {% endif %}
+</body>
+</html>
