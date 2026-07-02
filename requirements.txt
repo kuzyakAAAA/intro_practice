@@ -1,0 +1,5 @@
+flask>=3.0
+requests>=2.31
+langchain-gigachat>=0.3
+langchain-core>=0.3
+python-dotenv>=1.0
