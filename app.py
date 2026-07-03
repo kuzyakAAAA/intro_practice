@@ -1,148 +1,329 @@
-from flask import Flask, request, session, jsonify, render_template
 import importlib.util
+import os
 from pathlib import Path
 
-app = Flask(__name__)
-app.secret_key = "instacart-demo-secret-key"
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request, session
+
+
 BASE_DIR = Path(__file__).parent
+
+# Загружаем переменные окружения, включая FLASK_SECRET_KEY.
+load_dotenv(BASE_DIR / ".env", override=True)
+
+app = Flask(__name__)
+app.secret_key = os.getenv(
+    "FLASK_SECRET_KEY",
+    "instacart-demo-secret-key",
+)
+
+BUSINESS_RULES_MODULE = None
 
 
 def load_business_rules():
+    """Загружает business-rules.py как отдельный Python-модуль."""
+    global BUSINESS_RULES_MODULE
+
+    if BUSINESS_RULES_MODULE is not None:
+        return BUSINESS_RULES_MODULE
+
     py_path = BASE_DIR / "business-rules.py"
+
     if not py_path.exists():
         raise FileNotFoundError(
-            "Не найден business-rules.py."
+            "Файл business-rules.py не найден в папке проекта"
         )
 
-    spec = importlib.util.spec_from_file_location("business-rules", py_path)
+    spec = importlib.util.spec_from_file_location(
+        "business_rules_module",
+        py_path,
+    )
+
+    if spec is None or spec.loader is None:
+        raise ImportError("Не удалось загрузить business-rules.py")
+
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+
+    BUSINESS_RULES_MODULE = module
+
     return module
+
+
+def render_page(**kwargs):
+    """
+    Отдаёт index.html и передаёт туда все переменные,
+    которые могут использоваться в интерфейсе.
+    """
+    context = {
+        "user_id": session.get("user_id"),
+        "products": None,
+        "prompt_text": None,
+        "recommendation": None,
+        "forgotten_products": None,
+        "rhythm": None,
+        "final_prompt_text": None,
+        "final_recommendation": None,
+        "error": None,
+    }
+
+    context.update(kwargs)
+
+    return render_template("index.html", **context)
+
+
+def get_current_user_id():
+    """Возвращает ID пользователя из сессии."""
+    return session.get("user_id")
 
 
 @app.route("/", methods=["GET"])
 def index():
     startup_error = None
-    if not (BASE_DIR / "business-rules.py").exists():
-        startup_error = (
-            "Файл business-rules.py не найден. "            
-        )
 
-    return render_template(
-        "index.html",
-        user_id=session.get("user_id"),
-        products=None,
-        prompt_text=None,
-        recommendation=None,
-        error=startup_error,
-    )
+    if not (BASE_DIR / "business-rules.py").exists():
+        startup_error = "Файл business-rules.py не найден."
+
+    return render_page(error=startup_error)
 
 
 @app.route("/login", methods=["POST"])
 def login():
     user_id = request.form.get("user_id", "").strip()
+
     if not user_id.isdigit():
-        return render_template(
-            "index.html",
-            user_id=None,
-            products=None,
-            prompt_text=None,
-            recommendation=None,
-            error="user_id должен быть целым числом",
+        return render_page(
+            error="user_id должен быть целым положительным числом",
         )
+
     session["user_id"] = int(user_id)
-    return render_template(
-        "index.html",
-        user_id=session.get("user_id"),
-        products=None,
-        prompt_text=None,
-        recommendation=None,
-        error=None,
-    )
+
+    return render_page()
 
 
 @app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
-    return render_template(
-        "index.html",
-        user_id=None,
-        products=None,
-        prompt_text=None,
-        recommendation=None,
-        error=None,
-    )
+
+    return render_page()
 
 
 @app.route("/history", methods=["POST"])
 def history():
-    user_id = session.get("user_id")
+    user_id = get_current_user_id()
+
     if not user_id:
-        return render_template(
-            "index.html",
-            user_id=None,
-            products=None,
-            prompt_text=None,
-            recommendation=None,
-            error="Сначала авторизуйтесь по user_id",
-        )
+        return render_page(error="Сначала авторизуйтесь")
 
     try:
         rules = load_business_rules()
-        rows = rules.get_user_history(user_id)
 
-        if not rows:
-            return render_template(
-                "index.html",
-                user_id=user_id,
-                products=None,
-                prompt_text=None,
-                recommendation=None,
-                error="Loginom вернул пустой список товаров",
-            )
+        products = rules.get_user_history(user_id)
+        products_text = rules.build_products_text(products)
 
-        products_text = rules.build_products_text(rows)
-        prompt_text, recommendation = rules.ask_gigachat(user_id, products_text)
+        prompt_text, recommendation = rules.ask_gigachat(
+            user_id,
+            products_text,
+        )
 
-        return render_template(
-            "index.html",
-            user_id=user_id,
-            products=rows,
+        return render_page(
+            products=products,
             prompt_text=prompt_text,
             recommendation=recommendation,
-            error=None,
         )
-    except Exception as e:
-        return render_template(
-            "index.html",
+
+    except Exception as error:
+        return render_page(
+            error=f"Не удалось получить историю покупок: {error}",
+        )
+
+
+@app.route("/forgotten-products", methods=["POST"])
+def forgotten_products():
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return render_page(error="Сначала авторизуйтесь")
+
+    try:
+        rules = load_business_rules()
+
+        products = rules.get_forgotten_products(user_id)
+
+        return render_page(
+            forgotten_products=products,
+        )
+
+    except Exception as error:
+        return render_page(
+            error=f"Не удалось найти забытые товары: {error}",
+        )
+
+
+@app.route("/purchase-rhythm", methods=["POST"])
+def purchase_rhythm():
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return render_page(error="Сначала авторизуйтесь")
+
+    try:
+        rules = load_business_rules()
+
+        rhythm = rules.get_purchase_rhythm(user_id)
+
+        return render_page(
+            rhythm=rhythm,
+        )
+
+    except Exception as error:
+        return render_page(
+            error=f"Не удалось получить ритм покупок: {error}",
+        )
+
+
+@app.route("/final-advice", methods=["POST"])
+def final_advice():
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return render_page(error="Сначала авторизуйтесь")
+
+    products = None
+    forgotten_products_data = None
+    rhythm = None
+
+    try:
+        rules = load_business_rules()
+
+        # Получаем данные всех трёх сервисов.
+        products = rules.get_user_history(user_id)
+        forgotten_products_data = rules.get_forgotten_products(user_id)
+        rhythm = rules.get_purchase_rhythm(user_id)
+
+        # Объединяем аналитику в один контекст.
+        context = rules.build_final_context(
+            history_rows=products,
+            forgotten_rows=forgotten_products_data,
+            rhythm=rhythm,
+        )
+
+        final_prompt_text, final_recommendation = rules.ask_final_advice(
             user_id=user_id,
-            products=None,
-            prompt_text=None,
-            recommendation=None,
-            error=f"Ошибка: {e}",
+            context=context,
+        )
+
+        return render_page(
+            products=products,
+            forgotten_products=forgotten_products_data,
+            rhythm=rhythm,
+            final_prompt_text=final_prompt_text,
+            final_recommendation=final_recommendation,
+        )
+
+    except Exception as error:
+        return render_page(
+            products=products,
+            forgotten_products=forgotten_products_data,
+            rhythm=rhythm,
+            error=f"Не удалось сформировать итоговый совет: {error}",
         )
 
 
 @app.route("/api/history", methods=["POST"])
 def api_history():
-    user_id = session.get("user_id")
+    """
+    API-вариант базового сервиса.
+    Его удобно использовать для тестирования или JavaScript.
+    """
+    user_id = get_current_user_id()
+
     if not user_id:
-        return jsonify({"error": "Сначала авторизуйтесь"}), 403
+        return jsonify(
+            {
+                "error": "Сначала авторизуйтесь"
+            }
+        ), 403
 
     try:
         rules = load_business_rules()
-        rows = rules.get_user_history(user_id)
-        products_text = rules.build_products_text(rows)
-        prompt_text, recommendation = rules.ask_gigachat(user_id, products_text)
-        return jsonify({
-            "user_id": user_id,
-            "products": rows,
-            "prompt_text": prompt_text,
-            "recommendation": recommendation,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+        products = rules.get_user_history(user_id)
+        products_text = rules.build_products_text(products)
+
+        prompt_text, recommendation = rules.ask_gigachat(
+            user_id,
+            products_text,
+        )
+
+        return jsonify(
+            {
+                "user_id": user_id,
+                "products": products,
+                "prompt_text": prompt_text,
+                "recommendation": recommendation,
+            }
+        )
+
+    except Exception as error:
+        return jsonify(
+            {
+                "error": str(error)
+            }
+        ), 500
+
+
+@app.route("/api/dashboard", methods=["POST"])
+def api_dashboard():
+    """
+    API-вариант полного клиентского кабинета.
+    Возвращает историю, напоминания, ритм покупок и итоговый совет.
+    """
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return jsonify(
+            {
+                "error": "Сначала авторизуйтесь"
+            }
+        ), 403
+
+    try:
+        rules = load_business_rules()
+
+        products = rules.get_user_history(user_id)
+        forgotten_products_data = rules.get_forgotten_products(user_id)
+        rhythm = rules.get_purchase_rhythm(user_id)
+
+        context = rules.build_final_context(
+            history_rows=products,
+            forgotten_rows=forgotten_products_data,
+            rhythm=rhythm,
+        )
+
+        prompt_text, final_recommendation = rules.ask_final_advice(
+            user_id=user_id,
+            context=context,
+        )
+
+        return jsonify(
+            {
+                "user_id": user_id,
+                "products": products,
+                "forgotten_products": forgotten_products_data,
+                "rhythm": rhythm,
+                "prompt_text": prompt_text,
+                "final_recommendation": final_recommendation,
+            }
+        )
+
+    except Exception as error:
+        return jsonify(
+            {
+                "error": str(error)
+            }
+        ), 500
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
