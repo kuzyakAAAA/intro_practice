@@ -22,3 +22,5 @@ Thumbs.db
 
 # Логи
 *.log
+
+.gigacode/

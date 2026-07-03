@@ -9,7 +9,6 @@ from langchain_gigachat.chat_models import GigaChat
 
 BASE_DIR = Path(__file__).parent
 
-# Загружаем переменные из .env, который находится рядом с этим файлом.
 load_dotenv(BASE_DIR / ".env", override=True)
 
 GIGA_KEY = os.getenv("GIGA_KEY", "").strip()
@@ -20,12 +19,24 @@ if not GIGA_KEY:
     raise ValueError("Ключ GIGA_KEY не найден в файле .env")
 
 
-# URL опубликованных сервисов Loginom.
 LOGINOM_BASE_URL = "https://edu.loginom.dev/lgi/rest/instacart_ws_kuzmin3"
 
 LOGINOM_HISTORY_URL = f"{LOGINOM_BASE_URL}/GetUserHistory"
 LOGINOM_FORGOTTEN_URL = f"{LOGINOM_BASE_URL}/GetForgottenProducts"
 LOGINOM_RHYTHM_URL = f"{LOGINOM_BASE_URL}/GetPurchaseRhythm"
+LOGINOM_ORDER_TIMING_URL = f"{LOGINOM_BASE_URL}/GetOrderTiming"
+
+
+# Нумерация order_dow в твоей базе Instacart.
+DAYS_RU = {
+    0: "Сб",
+    1: "Вс",
+    2: "Пн",
+    3: "Вт",
+    4: "Ср",
+    5: "Чт",
+    6: "Пт",
+}
 
 
 llm = GigaChat(
@@ -39,7 +50,7 @@ llm = GigaChat(
 
 
 def call_loginom_service(url: str, user_id: int):
-    """Вызывает опубликованный сервис Loginom и возвращает строки результата."""
+    """Вызывает REST-метод Loginom и возвращает список строк."""
     payload = {
         "Variables": {
             "user_id": user_id
@@ -54,7 +65,9 @@ def call_loginom_service(url: str, user_id: int):
         )
         response.raise_for_status()
     except requests.RequestException as error:
-        raise RuntimeError(f"Ошибка при обращении к Loginom: {error}") from error
+        raise RuntimeError(
+            f"Ошибка при обращении к Loginom: {error}"
+        ) from error
 
     try:
         data = response.json()
@@ -70,8 +83,55 @@ def call_loginom_service(url: str, user_id: int):
     return rows
 
 
+def to_int_or_none(value):
+    """Преобразует значение Loginom в целое число."""
+    if value is None:
+        return None
+
+    try:
+        text = str(value).strip()
+
+        if not text:
+            return None
+
+        return int(float(text.split()[0]))
+    except (TypeError, ValueError):
+        return None
+
+
+def to_rounded_int_or_none(value):
+    """Преобразует значение в округлённое целое число."""
+    if value is None:
+        return None
+
+    try:
+        return int(round(float(str(value).strip())))
+    except (TypeError, ValueError):
+        return None
+
+
+def get_day_name(day_number):
+    """Преобразует номер дня недели в сокращённое название."""
+    day_number = to_int_or_none(day_number)
+
+    if day_number is None:
+        return "Неизвестный день"
+
+    return DAYS_RU.get(day_number, "Неизвестный день")
+
+
+def format_hour(hour):
+    """Преобразует час в формат ЧЧ:00."""
+    hour = to_int_or_none(hour)
+
+    if hour is None:
+        return "Неизвестное время"
+
+    return f"{hour:02d}:00"
+
+
 def get_user_history(user_id: int):
-    """Возвращает историю популярных товаров пользователя."""
+    """Возвращает популярные товары пользователя."""
     rows = call_loginom_service(LOGINOM_HISTORY_URL, user_id)
 
     if not rows:
@@ -112,13 +172,13 @@ def build_products_text(rows):
 
 
 def ask_gigachat(user_id: int, products_text: str):
-    """Создаёт короткую рекомендацию по истории покупок клиента."""
+    """Формирует краткий вывод по истории покупок."""
     system_prompt = """
 Ты персональный помощник покупателя в продуктовом онлайн-магазине.
 
-Твоя задача: кратко и понятно объяснять покупательские привычки клиента.
+Кратко и понятно объясняй покупательские привычки клиента.
 Обращайся на "вы", используй дружелюбный, но не рекламный тон.
-Не придумывай факты, которых нет в данных.
+Не выдумывай факты, которых нет в данных.
 Пиши не больше 5–6 предложений.
 """.strip()
 
@@ -140,21 +200,16 @@ def ask_gigachat(user_id: int, products_text: str):
         ]
     )
 
-    recommendation = str(response.content).strip()
-
-    return user_prompt, recommendation
+    return user_prompt, str(response.content).strip()
 
 
 def get_forgotten_products(user_id: int):
-    """
-    Возвращает товары, которые пользователь часто покупал,
-    но не добавлял в несколько последних заказов.
-    """
+    """Возвращает товары, которые пользователь мог забыть купить."""
     return call_loginom_service(LOGINOM_FORGOTTEN_URL, user_id)
 
 
 def build_forgotten_products_text(rows):
-    """Преобразует забытые товары в текст для итоговой рекомендации."""
+    """Преобразует список забытых товаров в текст."""
     if not rows:
         return "Явных товаров для напоминания не найдено."
 
@@ -174,58 +229,207 @@ def build_forgotten_products_text(rows):
 
 
 def get_purchase_rhythm(user_id: int):
-    """Возвращает частоту, типичный день и время заказов пользователя."""
+    """
+    Возвращает статистику по периодичности покупок.
+
+    Прогноз строится относительно последнего заказа в истории,
+    потому что в Instacart нет реальной календарной даты заказа.
+    """
     rows = call_loginom_service(LOGINOM_RHYTHM_URL, user_id)
 
+    if not rows or not rows[0]:
+        raise ValueError(
+            "GetPurchaseRhythm вернул пустой результат. "
+            "Проверь SQL и выходной порт в Loginom."
+        )
+
+    raw = dict(rows[0])
+
+    avg_days = to_rounded_int_or_none(raw.get("avg_days"))
+    min_days = to_rounded_int_or_none(raw.get("min_days"))
+    max_days = to_rounded_int_or_none(raw.get("max_days"))
+
+    last_order_dow = to_int_or_none(raw.get("last_order_dow"))
+
+    expected_next_order_day = "Недостаточно данных"
+
+    if avg_days is not None and last_order_dow is not None:
+        expected_day_number = (
+            last_order_dow + avg_days
+        ) % 7
+
+        expected_next_order_day = get_day_name(
+            expected_day_number
+        )
+
+    return {
+        "avg_days": avg_days,
+        "min_days": min_days,
+        "max_days": max_days,
+        "orders_count": to_int_or_none(
+            raw.get("orders_count")
+        ),
+        "last_order_number": to_int_or_none(
+            raw.get("last_order_number")
+        ),
+        "last_order_day": get_day_name(
+            raw.get("last_order_dow")
+        ),
+        "last_order_hour_text": format_hour(
+            raw.get("last_order_hour")
+        ),
+        "expected_next_order_day": expected_next_order_day,
+    }
+
+
+def get_order_timing(user_id: int):
+    """
+    Возвращает распределение заказов по дням недели и часам.
+
+    Используется для heatmap, графика по дням и поиска
+    самого частого момента заказа.
+    """
+    rows = call_loginom_service(
+        LOGINOM_ORDER_TIMING_URL,
+        user_id,
+    )
+
     if not rows:
-        raise ValueError("Не удалось получить ритм покупок пользователя")
+        raise ValueError(
+            "GetOrderTiming не вернул данные. "
+            "Проверь SQL и выходной порт в Loginom."
+        )
 
-    rhythm = dict(rows[0])
+    result = []
 
-    favorite_day = rhythm.get(
-        "favorite_day",
-        rhythm.get("order_dow_string", "Неизвестный день"),
+    for row in rows:
+        result.append(
+            {
+                "order_dow": to_int_or_none(
+                    row.get("order_dow")
+                ),
+                "order_hour": to_int_or_none(
+                    row.get("order_hour_of_day")
+                ),
+                "orders_count": to_int_or_none(
+                    row.get("orders_count")
+                ) or 0,
+            }
+        )
+
+    return result
+
+
+def build_timing_summary(timing_rows):
+    """
+    Формирует данные для:
+    - самого частого времени заказа;
+    - графика по дням недели;
+    - heatmap.
+    """
+    weekly_counts = {
+        day_number: 0
+        for day_number in DAYS_RU
+    }
+
+    heatmap_data = []
+
+    for row in timing_rows:
+        day_number = row["order_dow"]
+        hour = row["order_hour"]
+        orders_count = row["orders_count"]
+
+        if day_number in weekly_counts:
+            weekly_counts[day_number] += orders_count
+
+        heatmap_data.append(
+            {
+                "day_number": day_number,
+                "day_name": get_day_name(day_number),
+                "hour": hour,
+                "hour_text": format_hour(hour),
+                "orders_count": orders_count,
+            }
+        )
+
+    weekly_activity = []
+
+    for day_number, day_name in DAYS_RU.items():
+        weekly_activity.append(
+            {
+                "day_number": day_number,
+                "day_name": day_name,
+                "orders_count": weekly_counts[day_number],
+            }
+        )
+
+    peak_order_time = max(
+        heatmap_data,
+        key=lambda item: item["orders_count"],
+        default=None,
     )
 
-    favorite_hour = rhythm.get(
-        "favorite_hour",
-        rhythm.get("order_hour_of_day"),
-    )
-
-    rhythm["favorite_day"] = favorite_day
-
-    try:
-        rhythm["favorite_hour_text"] = f"{int(favorite_hour):02d}:00"
-    except (TypeError, ValueError):
-        rhythm["favorite_hour_text"] = "неизвестное время"
-
-    return rhythm
-
-
-def build_rhythm_text(rhythm):
-    """Преобразует метрики ритма покупок в понятный текст."""
-    total_orders = rhythm.get("total_orders", "—")
-    avg_interval_days = rhythm.get("avg_interval_days")
-    favorite_day = rhythm.get("favorite_day", "неизвестный день")
-    favorite_hour = rhythm.get("favorite_hour_text", "неизвестное время")
-
-    if avg_interval_days is None:
-        interval_text = "недостаточно данных для расчёта интервала"
+    if peak_order_time is None:
+        peak_day = "Неизвестный день"
+        peak_hour_text = "Неизвестное время"
+        peak_orders_count = 0
     else:
-        interval_text = f"в среднем раз в {avg_interval_days} дня"
+        peak_day = peak_order_time["day_name"]
+        peak_hour_text = peak_order_time["hour_text"]
+        peak_orders_count = peak_order_time["orders_count"]
+
+    return {
+        "peak_day": peak_day,
+        "peak_hour_text": peak_hour_text,
+        "peak_orders_count": peak_orders_count,
+        "weekly_activity": weekly_activity,
+        "heatmap_data": heatmap_data,
+    }
+
+
+def build_rhythm_text(rhythm, timing_summary):
+    """Преобразует ритм и время заказов в текст для GigaChat."""
+    avg_days = rhythm.get("avg_days")
+
+    if avg_days is None:
+        forecast_text = "Недостаточно данных для прогноза."
+    else:
+        forecast_text = (
+            f"Следующая покупка обычно происходит примерно через "
+            f"{avg_days} дней после последнего заказа, "
+            f"ориентировочно в {rhythm['expected_next_order_day']}."
+        )
 
     return (
-        f"Всего заказов: {total_orders}. "
-        f"Пользователь делает заказ {interval_text}. "
-        f"Чаще всего заказывает в {favorite_day} около {favorite_hour}."
+        f"Всего заказов: {rhythm.get('orders_count') or '—'}. "
+        f"Средний интервал: {avg_days or '—'} дней. "
+        f"Минимальный интервал: {rhythm.get('min_days') or '—'} дней. "
+        f"Максимальный интервал: {rhythm.get('max_days') or '—'} дней. "
+        f"Последний заказ в истории: №"
+        f"{rhythm.get('last_order_number') or '—'}, "
+        f"{rhythm.get('last_order_day')} "
+        f"около {rhythm.get('last_order_hour_text')}. "
+        f"Чаще всего пользователь оформляет заказ в "
+        f"{timing_summary['peak_day']} около "
+        f"{timing_summary['peak_hour_text']}. "
+        f"{forecast_text}"
     )
 
 
-def build_final_context(history_rows, forgotten_rows, rhythm):
-    """Собирает результаты всех сервисов в единый контекст для GigaChat."""
+def build_final_context(
+    history_rows,
+    forgotten_rows,
+    rhythm,
+    timing_summary,
+):
+    """Собирает результаты аналитики для итогового совета."""
     history_text = build_products_text(history_rows)
     forgotten_text = build_forgotten_products_text(forgotten_rows)
-    rhythm_text = build_rhythm_text(rhythm)
+
+    rhythm_text = build_rhythm_text(
+        rhythm,
+        timing_summary,
+    )
 
     return f"""
 Популярные товары клиента:
@@ -234,13 +438,13 @@ def build_final_context(history_rows, forgotten_rows, rhythm):
 Товары, которые пользователь мог забыть:
 {forgotten_text}
 
-Ритм покупок:
+Ритм и время заказов:
 {rhythm_text}
 """.strip()
 
 
 def ask_final_advice(user_id: int, context: str):
-    """Формирует 2–3 итоговых действия для пользователя."""
+    """Формирует 2–3 итоговых совета."""
     system_prompt = """
 Ты помощник продуктового онлайн-магазина.
 
@@ -259,7 +463,7 @@ def ask_final_advice(user_id: int, context: str):
 Требования:
 - дай от 2 до 3 конкретных советов;
 - нумеруй советы;
-- объясняй совет через данные пользователя;
+- объясняй каждый совет данными пользователя;
 - если нет товаров для напоминания, не выдумывай их.
 """.strip()
 
@@ -270,6 +474,4 @@ def ask_final_advice(user_id: int, context: str):
         ]
     )
 
-    recommendation = str(response.content).strip()
-
-    return user_prompt, recommendation
+    return user_prompt, str(response.content).strip()

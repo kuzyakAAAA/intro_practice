@@ -6,18 +6,18 @@
 
   <title>SmartCart — аналитика покупок</title>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     :root {
-      --bg: #f5f7fb;
+      --bg: #f4f7fb;
       --surface: #ffffff;
-      --surface-soft: #f8fafc;
       --text: #172033;
       --muted: #6b7280;
       --line: #e5e7eb;
 
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
-      --primary-soft: #eff6ff;
 
       --green: #15803d;
       --green-soft: #ecfdf3;
@@ -31,8 +31,7 @@
       --red: #b91c1c;
       --red-soft: #fef2f2;
 
-      --shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
-      --radius: 18px;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
     * {
@@ -46,7 +45,7 @@
       background:
         radial-gradient(circle at top right, #dbeafe 0, transparent 28%),
         var(--bg);
-      font-family: Inter, Arial, sans-serif;
+      font-family: Arial, sans-serif;
     }
 
     .container {
@@ -57,56 +56,33 @@
 
     .hero {
       display: flex;
-      align-items: flex-start;
       justify-content: space-between;
-      gap: 28px;
+      gap: 24px;
       padding: 30px;
       margin-bottom: 22px;
       color: #ffffff;
       border-radius: 24px;
-      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 48%, #0ea5e9 100%);
+      background: linear-gradient(135deg, #1e3a8a, #2563eb, #0ea5e9);
       box-shadow: 0 18px 45px rgba(37, 99, 235, 0.22);
     }
 
-    .eyebrow {
-      margin: 0 0 10px;
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      opacity: 0.82;
-    }
-
-    h1,
-    h2,
-    h3,
-    p {
-      margin-top: 0;
-    }
-
-    h1 {
-      max-width: 680px;
-      margin-bottom: 12px;
+    .hero h1 {
+      margin: 0 0 12px;
       font-size: clamp(28px, 4vw, 42px);
-      line-height: 1.08;
     }
 
-    .hero-text {
-      max-width: 680px;
+    .hero p {
       margin: 0;
-      font-size: 17px;
       line-height: 1.55;
       opacity: 0.92;
     }
 
     .user-badge {
-      flex-shrink: 0;
       min-width: 180px;
       padding: 16px 18px;
       border: 1px solid rgba(255, 255, 255, 0.25);
       border-radius: 16px;
       background: rgba(255, 255, 255, 0.13);
-      backdrop-filter: blur(8px);
     }
 
     .user-badge span {
@@ -117,38 +93,32 @@
     }
 
     .user-badge strong {
-      display: block;
-      overflow: hidden;
-      font-size: 23px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: 22px;
     }
 
     .card {
       padding: 24px;
       margin-bottom: 20px;
-      border: 1px solid rgba(226, 232, 240, 0.95);
-      border-radius: var(--radius);
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
       background: var(--surface);
       box-shadow: var(--shadow);
     }
 
-    .card-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 18px;
+    h2,
+    h3,
+    p {
+      margin-top: 0;
     }
 
-    .card-head h2 {
+    h2 {
       margin-bottom: 6px;
       font-size: 22px;
     }
 
     .muted {
       color: var(--muted);
-      line-height: 1.55;
+      line-height: 1.5;
     }
 
     .auth-grid {
@@ -162,24 +132,16 @@
       display: block;
       margin-bottom: 8px;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: bold;
     }
 
     input {
       width: 100%;
       min-height: 46px;
       padding: 11px 13px;
-      color: var(--text);
       font: inherit;
       border: 1px solid #cbd5e1;
       border-radius: 11px;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
     }
 
     button {
@@ -187,23 +149,20 @@
       padding: 11px 16px;
       color: #ffffff;
       font: inherit;
-      font-weight: 750;
+      font-weight: bold;
       cursor: pointer;
       border: 0;
       border-radius: 11px;
       background: var(--primary);
-      transition: transform 0.15s, background 0.2s, opacity 0.2s;
     }
 
     button:hover {
       background: var(--primary-hover);
-      transform: translateY(-1px);
     }
 
     button:disabled {
       cursor: not-allowed;
-      opacity: 0.48;
-      transform: none;
+      opacity: 0.45;
     }
 
     .button-secondary {
@@ -217,11 +176,9 @@
 
     .auth-status {
       display: flex;
-      align-items: center;
       justify-content: space-between;
       gap: 16px;
       padding: 14px 16px;
-      margin-top: 16px;
       border-radius: 12px;
       background: var(--green-soft);
     }
@@ -237,11 +194,13 @@
     }
 
     .service-card {
-      min-height: 214px;
+      display: flex;
+      flex-direction: column;
+      min-height: 210px;
       padding: 20px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: var(--surface-soft);
+      background: #f8fafc;
     }
 
     .service-icon {
@@ -255,7 +214,7 @@
     }
 
     .icon-blue {
-      background: var(--primary-soft);
+      background: #eff6ff;
     }
 
     .icon-orange {
@@ -276,39 +235,21 @@
     }
 
     .service-card p {
-      min-height: 64px;
-      margin-bottom: 16px;
+      flex-grow: 1;
       color: var(--muted);
       font-size: 14px;
       line-height: 1.5;
     }
 
-    .service-card form {
-      margin-top: auto;
-    }
-
-    .service-card button {
-      width: 100%;
-    }
-
     .alert {
       display: flex;
       gap: 12px;
-      padding: 16px 18px;
+      padding: 16px;
+      margin-bottom: 20px;
       color: var(--red);
       border: 1px solid #fecaca;
       border-radius: 14px;
       background: var(--red-soft);
-    }
-
-    .alert strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .section-title {
-      margin-bottom: 16px;
-      font-size: 22px;
     }
 
     .table-wrap {
@@ -319,9 +260,8 @@
 
     table {
       width: 100%;
-      min-width: 760px;
+      min-width: 700px;
       border-collapse: collapse;
-      background: #ffffff;
     }
 
     th,
@@ -334,8 +274,6 @@
     th {
       color: #475569;
       font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.05em;
       text-transform: uppercase;
       background: #f8fafc;
     }
@@ -344,13 +282,9 @@
       border-bottom: 0;
     }
 
-    tr:hover td {
-      background: #f8fbff;
-    }
-
     .number {
       color: var(--primary);
-      font-weight: 800;
+      font-weight: bold;
     }
 
     .department-tag {
@@ -358,7 +292,7 @@
       padding: 6px 9px;
       color: #0369a1;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: bold;
       border-radius: 999px;
       background: #e0f2fe;
     }
@@ -378,13 +312,11 @@
 
     .forgotten-item h3 {
       margin-bottom: 7px;
-      font-size: 17px;
     }
 
     .forgotten-item p {
       margin: 0;
-      color: #9a3412;
-      font-size: 14px;
+      color: var(--orange);
       line-height: 1.5;
     }
 
@@ -404,21 +336,38 @@
     .metric-label {
       display: block;
       margin-bottom: 7px;
-      color: #7e22ce;
+      color: var(--purple);
       font-size: 13px;
-      font-weight: 800;
+      font-weight: bold;
       text-transform: uppercase;
     }
 
     .metric-value {
-      font-size: 26px;
-      font-weight: 850;
+      display: block;
+      font-size: 22px;
+      font-weight: bold;
+      line-height: 1.35;
+    }
+
+    .forecast-grid {
+      margin-top: 14px;
+    }
+
+    .timing-highlight {
+      padding: 18px;
+      margin-top: 16px;
+      border: 1px solid #bae6fd;
+      border-radius: 14px;
+      background: #f0f9ff;
+    }
+
+    .timing-highlight strong {
+      color: #0369a1;
     }
 
     .recommendation {
       position: relative;
       padding: 22px 22px 22px 26px;
-      overflow: hidden;
       border: 1px solid #bbf7d0;
       border-radius: 16px;
       background: linear-gradient(135deg, #f0fdf4, #ffffff);
@@ -435,19 +384,70 @@
     }
 
     .recommendation-title {
-      display: flex;
-      align-items: center;
-      gap: 9px;
       margin-bottom: 10px;
       color: var(--green);
       font-size: 19px;
-      font-weight: 850;
+      font-weight: bold;
     }
 
     .recommendation-text {
       margin: 0;
       white-space: pre-wrap;
       line-height: 1.7;
+    }
+
+    .chart-wrap {
+      position: relative;
+      min-height: 330px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #ffffff;
+    }
+
+    .heatmap-wrap {
+      margin-top: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #ffffff;
+    }
+
+    .heatmap {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    .heatmap th,
+    .heatmap td {
+      width: 38px;
+      min-width: 38px;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .heatmap th:first-child,
+    .heatmap td:first-child {
+      width: 80px;
+      min-width: 80px;
+      font-weight: bold;
+    }
+
+    .heatmap-cell {
+      color: #334155;
+      font-weight: bold;
+      border-radius: 6px;
+    }
+
+    .empty-state {
+      padding: 18px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed #cbd5e1;
+      border-radius: 14px;
+      background: #f8fafc;
     }
 
     details {
@@ -460,27 +460,16 @@
     summary {
       padding: 13px 15px;
       cursor: pointer;
-      font-weight: 750;
+      font-weight: bold;
     }
 
     pre {
       margin: 0;
       padding: 16px;
       overflow-x: auto;
-      color: #334155;
-      font: 13px/1.55 Consolas, "Courier New", monospace;
       white-space: pre-wrap;
       border-top: 1px solid var(--line);
       background: #ffffff;
-    }
-
-    .empty-state {
-      padding: 18px;
-      color: var(--muted);
-      text-align: center;
-      border: 1px dashed #cbd5e1;
-      border-radius: 14px;
-      background: #f8fafc;
     }
 
     @media (max-width: 900px) {
@@ -515,7 +504,6 @@
       }
 
       .auth-status {
-        align-items: stretch;
         flex-direction: column;
       }
     }
@@ -527,11 +515,10 @@
 
     <section class="hero">
       <div>
-        <p class="eyebrow">Loginom · Flask · GigaChat</p>
         <h1>Ваш личный кабинет покупок</h1>
-        <p class="hero-text">
-          Анализируем историю заказов, напоминаем о возможных забытых товарах
-          и помогаем подготовиться к следующей корзине.
+        <p>
+          История заказов, забытые товары, ритм покупок
+          и персональные рекомендации.
         </p>
       </div>
 
@@ -548,19 +535,18 @@
     </section>
 
     <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>Авторизация клиента</h2>
-          <p class="muted">
-            Введите идентификатор пользователя, чтобы открыть персональную аналитику.
-          </p>
-        </div>
-      </div>
+      <h2>Авторизация клиента</h2>
+      <p class="muted">
+        Введите идентификатор пользователя, чтобы открыть персональную аналитику.
+      </p>
 
       {% if not user_id %}
         <form method="post" action="/login" class="auth-grid">
           <div>
-            <label class="field-label" for="user_id">Идентификатор клиента</label>
+            <label class="field-label" for="user_id">
+              Идентификатор клиента
+            </label>
+
             <input
               id="user_id"
               type="number"
@@ -577,32 +563,32 @@
         <div class="auth-status">
           <div>
             <strong>Клиент успешно выбран: ID {{ user_id }}</strong>
-            <div class="muted">Теперь можно запустить любой аналитический сервис.</div>
+            <div class="muted">
+              Теперь можно запустить сервисы аналитики.
+            </div>
           </div>
 
           <form method="post" action="/logout">
-            <button type="submit" class="button-secondary">Сменить пользователя</button>
+            <button type="submit" class="button-secondary">
+              Сменить пользователя
+            </button>
           </form>
         </div>
       {% endif %}
     </section>
 
     <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>Сервисы аналитики</h2>
-          <p class="muted">
-            Каждый сервис анализирует отдельную часть покупательского поведения.
-          </p>
-        </div>
-      </div>
+      <h2>Сервисы аналитики</h2>
+      <p class="muted">
+        Выберите нужный анализ для текущего пользователя.
+      </p>
 
       <div class="service-grid">
 
         <article class="service-card">
           <div class="service-icon icon-blue">🛒</div>
           <h3>Любимые товары</h3>
-          <p>Топ товаров клиента и краткий персональный вывод от GigaChat.</p>
+          <p>Топ товаров клиента и короткий вывод от GigaChat.</p>
 
           <form method="post" action="/history">
             <button type="submit" {% if not user_id %}disabled{% endif %}>
@@ -614,7 +600,7 @@
         <article class="service-card">
           <div class="service-icon icon-orange">🔔</div>
           <h3>Возможно, вы забыли</h3>
-          <p>Товары, которые покупались часто, но пропали из последних заказов.</p>
+          <p>Часто покупаемые товары, которых давно нет в заказах.</p>
 
           <form method="post" action="/forgotten-products">
             <button type="submit" {% if not user_id %}disabled{% endif %}>
@@ -626,7 +612,10 @@
         <article class="service-card">
           <div class="service-icon icon-purple">📅</div>
           <h3>Ритм покупок</h3>
-          <p>Как часто пользователь оформляет заказы и в какое время делает это обычно.</p>
+          <p>
+            Интервал заказов, последний заказ,
+            привычное время и heatmap.
+          </p>
 
           <form method="post" action="/purchase-rhythm">
             <button type="submit" {% if not user_id %}disabled{% endif %}>
@@ -638,7 +627,7 @@
         <article class="service-card">
           <div class="service-icon icon-green">✨</div>
           <h3>Что сделать сейчас</h3>
-          <p>Итоговый совет на основе всех данных: привычек, ритма и возможных напоминаний.</p>
+          <p>Итоговый совет на основе всей аналитики пользователя.</p>
 
           <form method="post" action="/final-advice">
             <button type="submit" {% if not user_id %}disabled{% endif %}>
@@ -654,15 +643,15 @@
       <section class="alert">
         <div>⚠️</div>
         <div>
-          <strong>Не удалось выполнить запрос</strong>
-          <div>{{ error }}</div>
+          <strong>Не удалось выполнить запрос</strong><br>
+          {{ error }}
         </div>
       </section>
     {% endif %}
 
     {% if products %}
       <section class="card">
-        <h2 class="section-title">Любимые товары клиента</h2>
+        <h2>Любимые товары клиента</h2>
 
         <div class="table-wrap">
           <table>
@@ -680,14 +669,22 @@
               {% for p in products %}
                 <tr>
                   <td class="number">{{ loop.index }}</td>
-                  <td><strong>{{ p.product_name }}</strong></td>
-                  <td>{{ p.aisle }}</td>
+                  <td>
+                    <strong>{{ p.get("product_name", "—") }}</strong>
+                  </td>
+                  <td>{{ p.get("aisle", "—") }}</td>
                   <td>
                     <span class="department-tag">
-                      {{ p.department_rus or p.department }}
+                      {{ p.get("department_rus")
+                         or p.get("department")
+                         or "—" }}
                     </span>
                   </td>
-                  <td class="number">{{ p.order_count }}</td>
+                  <td class="number">
+                    {{ p.get("order_count")
+                       or p.get("purchase_count")
+                       or "—" }}
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -699,8 +696,13 @@
     {% if recommendation %}
       <section class="card">
         <div class="recommendation">
-          <div class="recommendation-title">✨ Персональный вывод</div>
-          <p class="recommendation-text">{{ recommendation }}</p>
+          <div class="recommendation-title">
+            ✨ Персональный вывод
+          </div>
+
+          <p class="recommendation-text">
+            {{ recommendation }}
+          </p>
         </div>
 
         {% if prompt_text %}
@@ -714,31 +716,35 @@
 
     {% if forgotten_products is not none %}
       <section class="card">
-        <div class="card-head">
-          <div>
-            <h2>Возможно, вы забыли купить</h2>
-            <p class="muted">
-              Товары, которые пользователь часто покупал раньше, но давно не добавлял в корзину.
-            </p>
-          </div>
-        </div>
+        <h2>Возможно, вы забыли купить</h2>
+        <p class="muted">
+          Товары, которые часто покупались раньше,
+          но отсутствуют в последних заказах.
+        </p>
 
         {% if forgotten_products %}
           <div class="forgotten-list">
             {% for item in forgotten_products %}
               <article class="forgotten-item">
-                <h3>{{ item.product_name }}</h3>
+                <h3>
+                  {{ item.get("product_name", "Неизвестный товар") }}
+                </h3>
+
                 <p>
-                  Покупали в <strong>{{ item.purchase_count }}</strong> заказах.
-                  Отсутствует в последних
-                  <strong>{{ item.orders_since_last_purchase }}</strong> заказах.
+                  Покупали в
+                  <strong>{{ item.get("purchase_count", "—") }}</strong>
+                  заказах. Отсутствует в последних
+                  <strong>
+                    {{ item.get("orders_since_last_purchase", "—") }}
+                  </strong>
+                  заказах.
                 </p>
               </article>
             {% endfor %}
           </div>
         {% else %}
           <div class="empty-state">
-            Сейчас нет товаров, которые стоит напомнить добавить в корзину.
+            Сейчас нет товаров для напоминания.
           </div>
         {% endif %}
       </section>
@@ -746,34 +752,129 @@
 
     {% if rhythm %}
       <section class="card">
-        <div class="card-head">
-          <div>
-            <h2>Ритм покупок</h2>
-            <p class="muted">
-              Краткая статистика по частоте и привычному времени оформления заказов.
-            </p>
-          </div>
-        </div>
+        <h2>Ритм покупок</h2>
+        <p class="muted">
+          Прогноз строится относительно последнего заказа в истории,
+          потому что в наборе Instacart нет календарной даты заказа.
+        </p>
 
         <div class="metric-grid">
           <article class="metric">
-            <span class="metric-label">Всего заказов</span>
-            <span class="metric-value">{{ rhythm.total_orders }}</span>
-          </article>
-
-          <article class="metric">
             <span class="metric-label">Средний интервал</span>
             <span class="metric-value">
-              {{ rhythm.avg_interval_days }} дн.
+              {% if rhythm.avg_days is not none %}
+                {{ rhythm.avg_days }} дн.
+              {% else %}
+                —
+              {% endif %}
             </span>
           </article>
 
           <article class="metric">
-            <span class="metric-label">Обычное время заказа</span>
+            <span class="metric-label">Минимальный интервал</span>
             <span class="metric-value">
-              {{ rhythm.favorite_day }}, {{ rhythm.favorite_hour_text }}
+              {% if rhythm.min_days is not none %}
+                {{ rhythm.min_days }} дн.
+              {% else %}
+                —
+              {% endif %}
             </span>
           </article>
+
+          <article class="metric">
+            <span class="metric-label">Максимальный интервал</span>
+            <span class="metric-value">
+              {% if rhythm.max_days is not none %}
+                {{ rhythm.max_days }} дн.
+              {% else %}
+                —
+              {% endif %}
+            </span>
+          </article>
+        </div>
+
+        <div class="metric-grid forecast-grid">
+          <article class="metric">
+            <span class="metric-label">Заказов в истории</span>
+            <span class="metric-value">
+              {{ rhythm.orders_count or "—" }}
+            </span>
+          </article>
+
+          <article class="metric">
+            <span class="metric-label">Последний заказ</span>
+            <span class="metric-value">
+              {{ rhythm.last_order_day }}
+              {{ rhythm.last_order_hour_text }}
+            </span>
+          </article>
+
+          <article class="metric">
+            <span class="metric-label">Ожидаемый день заказа</span>
+            <span class="metric-value">
+              {{ rhythm.expected_next_order_day }}
+            </span>
+          </article>
+        </div>
+
+        {% if timing_summary %}
+          <div class="timing-highlight">
+            <strong>Чаще всего пользователь оформляет заказ:</strong>
+            {{ timing_summary.peak_day }}
+            около {{ timing_summary.peak_hour_text }}.
+
+            {% if timing_summary.peak_orders_count %}
+              Это повторялось
+              {{ timing_summary.peak_orders_count }}
+              раз(а).
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if timing_summary %}
+      <section class="card">
+        <h2>Активность по дням недели</h2>
+        <p class="muted">
+          Суммарное количество заказов в каждый день недели.
+        </p>
+
+        <div
+          id="weekly-activity-data"
+          data-json='{{ timing_summary.weekly_activity | tojson | forceescape }}'
+          hidden
+        ></div>
+
+        <div class="chart-wrap">
+          <canvas id="weeklyActivityChart"></canvas>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Heatmap времени заказа</h2>
+        <p class="muted">
+          Чем насыщеннее ячейка, тем чаще пользователь делал заказ
+          в этот день и час.
+        </p>
+
+        <div
+          id="heatmap-data"
+          data-json='{{ timing_summary.heatmap_data | tojson | forceescape }}'
+          hidden
+        ></div>
+
+        <div class="heatmap-wrap">
+          <table class="heatmap" id="orderTimingHeatmap">
+            <thead>
+              <tr id="heatmap-header-row">
+                <th>День / час</th>
+              </tr>
+            </thead>
+
+            <tbody id="heatmap-body">
+            </tbody>
+          </table>
         </div>
       </section>
     {% endif %}
@@ -781,8 +882,13 @@
     {% if final_recommendation %}
       <section class="card">
         <div class="recommendation">
-          <div class="recommendation-title">✅ Что стоит сделать сейчас</div>
-          <p class="recommendation-text">{{ final_recommendation }}</p>
+          <div class="recommendation-title">
+            ✅ Что стоит сделать сейчас
+          </div>
+
+          <p class="recommendation-text">
+            {{ final_recommendation }}
+          </p>
         </div>
 
         {% if final_prompt_text %}
@@ -795,5 +901,225 @@
     {% endif %}
 
   </main>
+
+  <script>
+    function readJsonFromDataset(elementId) {
+      const element = document.getElementById(elementId);
+
+      if (!element) {
+        return [];
+      }
+
+      try {
+        return JSON.parse(element.dataset.json);
+      } catch (error) {
+        console.error(
+          "Не удалось обработать данные из " + elementId,
+          error
+        );
+
+        return [];
+      }
+    }
+
+    function buildWeeklyChart() {
+      const weeklyActivity = readJsonFromDataset(
+        "weekly-activity-data"
+      );
+
+      const canvas = document.getElementById(
+        "weeklyActivityChart"
+      );
+
+      if (!canvas || weeklyActivity.length === 0) {
+        return;
+      }
+
+      const labels = weeklyActivity.map(function(item) {
+        return item.day_name || "—";
+      });
+
+      const values = weeklyActivity.map(function(item) {
+        const value = Number(item.orders_count);
+
+        return Number.isFinite(value) ? value : 0;
+      });
+
+      new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              data: values,
+              fill: true,
+              tension: 0.35,
+              borderWidth: 3,
+              pointRadius: 5,
+              pointHoverRadius: 7
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return "Заказов: " + context.raw;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              },
+              title: {
+                display: true,
+                text: "Количество заказов"
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: "День недели"
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function getHeatmapCellColor(value, maxValue) {
+      if (!value || value <= 0) {
+        return "#f8fafc";
+      }
+
+      const intensity = value / maxValue;
+
+      if (intensity >= 0.8) {
+        return "#2563eb";
+      }
+
+      if (intensity >= 0.55) {
+        return "#60a5fa";
+      }
+
+      if (intensity >= 0.3) {
+        return "#bfdbfe";
+      }
+
+      return "#dbeafe";
+    }
+
+    function getHeatmapTextColor(value, maxValue) {
+      if (!value || value <= 0) {
+        return "#94a3b8";
+      }
+
+      const intensity = value / maxValue;
+
+      if (intensity >= 0.8) {
+        return "#ffffff";
+      }
+
+      return "#1e3a8a";
+    }
+
+    function buildHeatmap() {
+      const heatmapData = readJsonFromDataset(
+        "heatmap-data"
+      );
+
+      const headerRow = document.getElementById(
+        "heatmap-header-row"
+      );
+
+      const body = document.getElementById(
+        "heatmap-body"
+      );
+
+      if (!headerRow || !body || heatmapData.length === 0) {
+        return;
+      }
+
+      const days = [
+        "Сб",
+        "Вс",
+        "Пн",
+        "Вт",
+        "Ср",
+        "Чт",
+        "Пт"
+      ];
+
+      for (let hour = 0; hour < 24; hour += 1) {
+        const cell = document.createElement("th");
+        cell.textContent = String(hour).padStart(2, "0");
+        headerRow.appendChild(cell);
+      }
+
+      const values = heatmapData.map(function(item) {
+        return Number(item.orders_count) || 0;
+      });
+
+      const maxValue = Math.max.apply(null, values.concat([1]));
+
+      const lookup = {};
+
+      heatmapData.forEach(function(item) {
+        const day = Number(item.day_number);
+        const hour = Number(item.hour);
+
+        lookup[day + "-" + hour] =
+          Number(item.orders_count) || 0;
+      });
+
+      days.forEach(function(dayName, dayNumber) {
+        const row = document.createElement("tr");
+
+        const dayCell = document.createElement("td");
+        dayCell.textContent = dayName;
+        row.appendChild(dayCell);
+
+        for (let hour = 0; hour < 24; hour += 1) {
+          const value = lookup[dayNumber + "-" + hour] || 0;
+
+          const cell = document.createElement("td");
+
+          cell.className = "heatmap-cell";
+          cell.textContent = value > 0 ? value : "";
+          cell.title =
+            dayName + ", " +
+            String(hour).padStart(2, "0") +
+            ":00 — заказов: " + value;
+
+          cell.style.backgroundColor = getHeatmapCellColor(
+            value,
+            maxValue
+          );
+
+          cell.style.color = getHeatmapTextColor(
+            value,
+            maxValue
+          );
+
+          row.appendChild(cell);
+        }
+
+        body.appendChild(row);
+      });
+    }
+
+    buildWeeklyChart();
+    buildHeatmap();
+  </script>
 </body>
 </html>
