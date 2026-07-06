@@ -1,4 +1,6 @@
+import hashlib
 import os
+import sqlite3
 from pathlib import Path
 
 import requests
@@ -9,11 +11,17 @@ from langchain_gigachat.chat_models import GigaChat
 
 BASE_DIR = Path(__file__).parent
 
+CACHE_DB_PATH = BASE_DIR / "cache.db"
+CACHE_VERSION = "v1"
+
 load_dotenv(BASE_DIR / ".env", override=True)
 
 GIGA_KEY = os.getenv("GIGA_KEY", "").strip()
 GIGA_SCOPE = os.getenv("GIGA_SCOPE", "GIGACHAT_API_PERS")
 GIGA_MODEL = os.getenv("GIGA_MODEL", "GigaChat-2")
+
+GIGA_TEMPERATURE = 0.3
+GIGA_MAX_TOKENS = 500
 
 if not GIGA_KEY:
     raise ValueError("Ключ GIGA_KEY не найден в файле .env")
@@ -27,7 +35,8 @@ LOGINOM_RHYTHM_URL = f"{LOGINOM_BASE_URL}/GetPurchaseRhythm"
 LOGINOM_ORDER_TIMING_URL = f"{LOGINOM_BASE_URL}/GetOrderTiming"
 
 
-# Нумерация order_dow в твоей базе Instacart.
+# Нумерация order_dow в базе Instacart:
+# 0 — Сб, 1 — Вс, 2 — Пн, ... 6 — Пт.
 DAYS_RU = {
     0: "Сб",
     1: "Вс",
@@ -44,8 +53,8 @@ llm = GigaChat(
     scope=GIGA_SCOPE,
     model=GIGA_MODEL,
     verify_ssl_certs=False,
-    temperature=0.3,
-    max_tokens=500,
+    temperature=GIGA_TEMPERATURE,
+    max_tokens=GIGA_MAX_TOKENS,
 )
 
 
@@ -81,6 +90,136 @@ def call_loginom_service(url: str, user_id: int):
         raise ValueError("Loginom не вернул список строк")
 
     return rows
+
+
+def init_cache():
+    """Создаёт локальную SQLite-базу для кэша ответов GigaChat."""
+    with sqlite3.connect(CACHE_DB_PATH) as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS llm_cache (
+                cache_key TEXT PRIMARY KEY,
+                response_text TEXT NOT NULL
+            )
+            """
+        )
+
+
+def build_cache_key(
+    scenario: str,
+    system_prompt: str,
+    user_prompt: str,
+):
+    """
+    Создаёт ключ кэша из сценария, модели, параметров и промптов.
+
+    Если изменится текст запроса, данные пользователя или настройки модели,
+    будет сформирован новый ключ и старый ответ не используется.
+    """
+    source_text = "\n".join(
+        [
+            CACHE_VERSION,
+            scenario,
+            GIGA_MODEL,
+            str(GIGA_TEMPERATURE),
+            str(GIGA_MAX_TOKENS),
+            system_prompt,
+            user_prompt,
+        ]
+    )
+
+    return hashlib.sha256(
+        source_text.encode("utf-8")
+    ).hexdigest()
+
+
+def get_cached_response(cache_key: str):
+    """Возвращает сохранённый ответ или None, если записи нет."""
+    init_cache()
+
+    with sqlite3.connect(CACHE_DB_PATH) as connection:
+        cursor = connection.execute(
+            """
+            SELECT response_text
+            FROM llm_cache
+            WHERE cache_key = ?
+            """,
+            (cache_key,),
+        )
+
+        row = cursor.fetchone()
+
+    if row is None:
+        return None
+
+    return row[0]
+
+
+def save_cached_response(
+    cache_key: str,
+    response_text: str,
+):
+    """Сохраняет новый ответ GigaChat в SQLite-кэш."""
+    init_cache()
+
+    with sqlite3.connect(CACHE_DB_PATH) as connection:
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO llm_cache (
+                cache_key,
+                response_text
+            )
+            VALUES (?, ?)
+            """,
+            (
+                cache_key,
+                response_text,
+            ),
+        )
+
+
+def get_or_generate_llm_response(
+    scenario: str,
+    system_prompt: str,
+    user_prompt: str,
+):
+    """
+    Ищет готовый ответ в кэше.
+
+    Если ответа нет, вызывает GigaChat и сохраняет результат.
+    """
+    cache_key = build_cache_key(
+        scenario=scenario,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+    )
+
+    cached_response = get_cached_response(cache_key)
+
+    if cached_response is not None:
+        print(f"[LLM cache] hit: {scenario}")
+        return cached_response
+
+    print(f"[LLM cache] miss: {scenario}")
+
+    response = llm.invoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt),
+        ]
+    )
+
+    response_text = str(response.content).strip()
+
+    if not response_text:
+        raise ValueError("GigaChat вернул пустой ответ")
+
+    save_cached_response(
+        cache_key=cache_key,
+        response_text=response_text,
+    )
+
+    return response_text
 
 
 def to_int_or_none(value):
@@ -193,14 +332,13 @@ def ask_gigachat(user_id: int, products_text: str):
 3. Один ненавязчивый совет для следующей корзины.
 """.strip()
 
-    response = llm.invoke(
-        [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt),
-        ]
+    answer_text = get_or_generate_llm_response(
+        scenario="purchase_profile",
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
 
-    return user_prompt, str(response.content).strip()
+    return user_prompt, answer_text
 
 
 def get_forgotten_products(user_id: int):
@@ -286,8 +424,7 @@ def get_order_timing(user_id: int):
     """
     Возвращает распределение заказов по дням недели и часам.
 
-    Используется для heatmap, графика по дням и поиска
-    самого частого момента заказа.
+    Используется для графика и поиска самого частого времени заказа.
     """
     rows = call_loginom_service(
         LOGINOM_ORDER_TIMING_URL,
@@ -354,7 +491,7 @@ def build_timing_summary(timing_rows):
             }
 
     # В базе: 0 — Сб, 1 — Вс, 2 — Пн.
-    # Для графика делаем привычный порядок: Пн → Вс.
+    # В интерфейсе: Пн → Вс.
     chart_day_order = [2, 3, 4, 5, 6, 0, 1]
 
     weekly_activity = []
@@ -398,13 +535,22 @@ def build_rhythm_text(rhythm, timing_summary):
             f"ориентировочно в {rhythm['expected_next_order_day']}."
         )
 
+    total_orders = rhythm.get("orders_count")
+    min_days = rhythm.get("min_days")
+    max_days = rhythm.get("max_days")
+    last_order_number = rhythm.get("last_order_number")
+
     return (
-        f"Всего заказов: {rhythm.get('orders_count') or '—'}. "
-        f"Средний интервал: {avg_days or '—'} дней. "
-        f"Минимальный интервал: {rhythm.get('min_days') or '—'} дней. "
-        f"Максимальный интервал: {rhythm.get('max_days') or '—'} дней. "
+        f"Всего заказов: "
+        f"{total_orders if total_orders is not None else '—'}. "
+        f"Средний интервал: "
+        f"{avg_days if avg_days is not None else '—'} дней. "
+        f"Минимальный интервал: "
+        f"{min_days if min_days is not None else '—'} дней. "
+        f"Максимальный интервал: "
+        f"{max_days if max_days is not None else '—'} дней. "
         f"Последний заказ в истории: №"
-        f"{rhythm.get('last_order_number') or '—'}, "
+        f"{last_order_number if last_order_number is not None else '—'}, "
         f"{rhythm.get('last_order_day')} "
         f"около {rhythm.get('last_order_hour_text')}. "
         f"Чаще всего пользователь оформляет заказ в "
@@ -465,11 +611,10 @@ def ask_final_advice(user_id: int, context: str):
 - если нет товаров для напоминания, не выдумывай их.
 """.strip()
 
-    response = llm.invoke(
-        [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_prompt),
-        ]
+    answer_text = get_or_generate_llm_response(
+        scenario="final_advice",
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
 
-    return user_prompt, str(response.content).strip()
+    return user_prompt, answer_text
