@@ -14,7 +14,7 @@
       --surface: #ffffff;
       --text: #172033;
       --muted: #6b7280;
-      --line: #e5e7eb;
+      --line: #e2e8f0;
 
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
@@ -99,7 +99,7 @@
     .card {
       padding: 24px;
       margin-bottom: 20px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--line);
       border-radius: 18px;
       background: var(--surface);
       box-shadow: var(--shadow);
@@ -405,42 +405,6 @@
       background: #ffffff;
     }
 
-    .heatmap-wrap {
-      margin-top: 18px;
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: #ffffff;
-    }
-
-    .heatmap {
-      width: 100%;
-      min-width: 760px;
-      border-collapse: collapse;
-    }
-
-    .heatmap th,
-    .heatmap td {
-      width: 38px;
-      min-width: 38px;
-      padding: 8px 4px;
-      text-align: center;
-      font-size: 12px;
-    }
-
-    .heatmap th:first-child,
-    .heatmap td:first-child {
-      width: 80px;
-      min-width: 80px;
-      font-weight: bold;
-    }
-
-    .heatmap-cell {
-      color: #334155;
-      font-weight: bold;
-      border-radius: 6px;
-    }
-
     .empty-state {
       padding: 18px;
       color: var(--muted);
@@ -524,6 +488,7 @@
 
       <div class="user-badge">
         <span>Текущий пользователь</span>
+
         <strong>
           {% if user_id %}
             ID {{ user_id }}
@@ -536,6 +501,7 @@
 
     <section class="card">
       <h2>Авторизация клиента</h2>
+
       <p class="muted">
         Введите идентификатор пользователя, чтобы открыть персональную аналитику.
       </p>
@@ -563,6 +529,7 @@
         <div class="auth-status">
           <div>
             <strong>Клиент успешно выбран: ID {{ user_id }}</strong>
+
             <div class="muted">
               Теперь можно запустить сервисы аналитики.
             </div>
@@ -579,6 +546,7 @@
 
     <section class="card">
       <h2>Сервисы аналитики</h2>
+
       <p class="muted">
         Выберите нужный анализ для текущего пользователя.
       </p>
@@ -587,7 +555,9 @@
 
         <article class="service-card">
           <div class="service-icon icon-blue">🛒</div>
+
           <h3>Любимые товары</h3>
+
           <p>Топ товаров клиента и короткий вывод от GigaChat.</p>
 
           <form method="post" action="/history">
@@ -599,7 +569,9 @@
 
         <article class="service-card">
           <div class="service-icon icon-orange">🔔</div>
+
           <h3>Возможно, вы забыли</h3>
+
           <p>Часто покупаемые товары, которых давно нет в заказах.</p>
 
           <form method="post" action="/forgotten-products">
@@ -611,10 +583,12 @@
 
         <article class="service-card">
           <div class="service-icon icon-purple">📅</div>
+
           <h3>Ритм покупок</h3>
+
           <p>
-            Интервал заказов, последний заказ,
-            привычное время и heatmap.
+            Интервал заказов, последний заказ
+            и активность по дням недели.
           </p>
 
           <form method="post" action="/purchase-rhythm">
@@ -626,7 +600,9 @@
 
         <article class="service-card">
           <div class="service-icon icon-green">✨</div>
+
           <h3>Что сделать сейчас</h3>
+
           <p>Итоговый совет на основе всей аналитики пользователя.</p>
 
           <form method="post" action="/final-advice">
@@ -642,6 +618,7 @@
     {% if error %}
       <section class="alert">
         <div>⚠️</div>
+
         <div>
           <strong>Не удалось выполнить запрос</strong><br>
           {{ error }}
@@ -669,10 +646,13 @@
               {% for p in products %}
                 <tr>
                   <td class="number">{{ loop.index }}</td>
+
                   <td>
                     <strong>{{ p.get("product_name", "—") }}</strong>
                   </td>
+
                   <td>{{ p.get("aisle", "—") }}</td>
+
                   <td>
                     <span class="department-tag">
                       {{ p.get("department_rus")
@@ -680,6 +660,7 @@
                          or "—" }}
                     </span>
                   </td>
+
                   <td class="number">
                     {{ p.get("order_count")
                        or p.get("purchase_count")
@@ -717,6 +698,7 @@
     {% if forgotten_products is not none %}
       <section class="card">
         <h2>Возможно, вы забыли купить</h2>
+
         <p class="muted">
           Товары, которые часто покупались раньше,
           но отсутствуют в последних заказах.
@@ -753,6 +735,7 @@
     {% if rhythm %}
       <section class="card">
         <h2>Ритм покупок</h2>
+
         <p class="muted">
           Прогноз строится относительно последнего заказа в истории,
           потому что в наборе Instacart нет календарной даты заказа.
@@ -761,6 +744,7 @@
         <div class="metric-grid">
           <article class="metric">
             <span class="metric-label">Средний интервал</span>
+
             <span class="metric-value">
               {% if rhythm.avg_days is not none %}
                 {{ rhythm.avg_days }} дн.
@@ -772,6 +756,7 @@
 
           <article class="metric">
             <span class="metric-label">Минимальный интервал</span>
+
             <span class="metric-value">
               {% if rhythm.min_days is not none %}
                 {{ rhythm.min_days }} дн.
@@ -783,6 +768,7 @@
 
           <article class="metric">
             <span class="metric-label">Максимальный интервал</span>
+
             <span class="metric-value">
               {% if rhythm.max_days is not none %}
                 {{ rhythm.max_days }} дн.
@@ -796,6 +782,7 @@
         <div class="metric-grid forecast-grid">
           <article class="metric">
             <span class="metric-label">Заказов в истории</span>
+
             <span class="metric-value">
               {{ rhythm.orders_count or "—" }}
             </span>
@@ -803,6 +790,7 @@
 
           <article class="metric">
             <span class="metric-label">Последний заказ</span>
+
             <span class="metric-value">
               {{ rhythm.last_order_day }}
               {{ rhythm.last_order_hour_text }}
@@ -811,6 +799,7 @@
 
           <article class="metric">
             <span class="metric-label">Ожидаемый день заказа</span>
+
             <span class="metric-value">
               {{ rhythm.expected_next_order_day }}
             </span>
@@ -836,45 +825,20 @@
     {% if timing_summary %}
       <section class="card">
         <h2>Активность по дням недели</h2>
+
         <p class="muted">
-          Суммарное количество заказов в каждый день недели.
+          Суммарное количество заказов:
+          от понедельника до воскресенья.
         </p>
 
         <div
           id="weekly-activity-data"
-          data-json='{{ timing_summary.weekly_activity | tojson | forceescape }}'
+          data-json="{{ timing_summary.weekly_activity | tojson | forceescape }}"
           hidden
         ></div>
 
         <div class="chart-wrap">
           <canvas id="weeklyActivityChart"></canvas>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Heatmap времени заказа</h2>
-        <p class="muted">
-          Чем насыщеннее ячейка, тем чаще пользователь делал заказ
-          в этот день и час.
-        </p>
-
-        <div
-          id="heatmap-data"
-          data-json='{{ timing_summary.heatmap_data | tojson | forceescape }}'
-          hidden
-        ></div>
-
-        <div class="heatmap-wrap">
-          <table class="heatmap" id="orderTimingHeatmap">
-            <thead>
-              <tr id="heatmap-header-row">
-                <th>День / час</th>
-              </tr>
-            </thead>
-
-            <tbody id="heatmap-body">
-            </tbody>
-          </table>
         </div>
       </section>
     {% endif %}
@@ -914,12 +878,31 @@
         return JSON.parse(element.dataset.json);
       } catch (error) {
         console.error(
-          "Не удалось обработать данные из " + elementId,
+          "Не удалось обработать данные графика:",
           error
         );
 
         return [];
       }
+    }
+
+    function sortWeekFromMonday(data) {
+      const dayOrder = {
+        "Пн": 0,
+        "Вт": 1,
+        "Ср": 2,
+        "Чт": 3,
+        "Пт": 4,
+        "Сб": 5,
+        "Вс": 6
+      };
+
+      return data.sort(function(firstItem, secondItem) {
+        const firstDay = dayOrder[firstItem.day_name];
+        const secondDay = dayOrder[secondItem.day_name];
+
+        return firstDay - secondDay;
+      });
     }
 
     function buildWeeklyChart() {
@@ -935,11 +918,13 @@
         return;
       }
 
-      const labels = weeklyActivity.map(function(item) {
+      const sortedActivity = sortWeekFromMonday(weeklyActivity);
+
+      const labels = sortedActivity.map(function(item) {
         return item.day_name || "—";
       });
 
-      const values = weeklyActivity.map(function(item) {
+      const values = sortedActivity.map(function(item) {
         const value = Number(item.orders_count);
 
         return Number.isFinite(value) ? value : 0;
@@ -997,129 +982,7 @@
       });
     }
 
-    function getHeatmapCellColor(value, maxValue) {
-      if (!value || value <= 0) {
-        return "#f8fafc";
-      }
-
-      const intensity = value / maxValue;
-
-      if (intensity >= 0.8) {
-        return "#2563eb";
-      }
-
-      if (intensity >= 0.55) {
-        return "#60a5fa";
-      }
-
-      if (intensity >= 0.3) {
-        return "#bfdbfe";
-      }
-
-      return "#dbeafe";
-    }
-
-    function getHeatmapTextColor(value, maxValue) {
-      if (!value || value <= 0) {
-        return "#94a3b8";
-      }
-
-      const intensity = value / maxValue;
-
-      if (intensity >= 0.8) {
-        return "#ffffff";
-      }
-
-      return "#1e3a8a";
-    }
-
-    function buildHeatmap() {
-      const heatmapData = readJsonFromDataset(
-        "heatmap-data"
-      );
-
-      const headerRow = document.getElementById(
-        "heatmap-header-row"
-      );
-
-      const body = document.getElementById(
-        "heatmap-body"
-      );
-
-      if (!headerRow || !body || heatmapData.length === 0) {
-        return;
-      }
-
-      const days = [
-        "Сб",
-        "Вс",
-        "Пн",
-        "Вт",
-        "Ср",
-        "Чт",
-        "Пт"
-      ];
-
-      for (let hour = 0; hour < 24; hour += 1) {
-        const cell = document.createElement("th");
-        cell.textContent = String(hour).padStart(2, "0");
-        headerRow.appendChild(cell);
-      }
-
-      const values = heatmapData.map(function(item) {
-        return Number(item.orders_count) || 0;
-      });
-
-      const maxValue = Math.max.apply(null, values.concat([1]));
-
-      const lookup = {};
-
-      heatmapData.forEach(function(item) {
-        const day = Number(item.day_number);
-        const hour = Number(item.hour);
-
-        lookup[day + "-" + hour] =
-          Number(item.orders_count) || 0;
-      });
-
-      days.forEach(function(dayName, dayNumber) {
-        const row = document.createElement("tr");
-
-        const dayCell = document.createElement("td");
-        dayCell.textContent = dayName;
-        row.appendChild(dayCell);
-
-        for (let hour = 0; hour < 24; hour += 1) {
-          const value = lookup[dayNumber + "-" + hour] || 0;
-
-          const cell = document.createElement("td");
-
-          cell.className = "heatmap-cell";
-          cell.textContent = value > 0 ? value : "";
-          cell.title =
-            dayName + ", " +
-            String(hour).padStart(2, "0") +
-            ":00 — заказов: " + value;
-
-          cell.style.backgroundColor = getHeatmapCellColor(
-            value,
-            maxValue
-          );
-
-          cell.style.color = getHeatmapTextColor(
-            value,
-            maxValue
-          );
-
-          row.appendChild(cell);
-        }
-
-        body.appendChild(row);
-      });
-    }
-
     buildWeeklyChart();
-    buildHeatmap();
   </script>
 </body>
 </html>

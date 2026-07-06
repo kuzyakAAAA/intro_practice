@@ -324,15 +324,16 @@ def build_timing_summary(timing_rows):
     """
     Формирует данные для:
     - самого частого времени заказа;
-    - графика по дням недели;
-    - heatmap.
+    - графика активности по дням недели.
+
+    График выводится в порядке: Пн → Вс.
     """
     weekly_counts = {
         day_number: 0
         for day_number in DAYS_RU
     }
 
-    heatmap_data = []
+    peak_order_time = None
 
     for row in timing_rows:
         day_number = row["order_dow"]
@@ -342,32 +343,30 @@ def build_timing_summary(timing_rows):
         if day_number in weekly_counts:
             weekly_counts[day_number] += orders_count
 
-        heatmap_data.append(
-            {
-                "day_number": day_number,
+        if (
+            peak_order_time is None
+            or orders_count > peak_order_time["orders_count"]
+        ):
+            peak_order_time = {
                 "day_name": get_day_name(day_number),
-                "hour": hour,
                 "hour_text": format_hour(hour),
                 "orders_count": orders_count,
             }
-        )
+
+    # В базе: 0 — Сб, 1 — Вс, 2 — Пн.
+    # Для графика делаем привычный порядок: Пн → Вс.
+    chart_day_order = [2, 3, 4, 5, 6, 0, 1]
 
     weekly_activity = []
 
-    for day_number, day_name in DAYS_RU.items():
+    for day_number in chart_day_order:
         weekly_activity.append(
             {
                 "day_number": day_number,
-                "day_name": day_name,
+                "day_name": DAYS_RU[day_number],
                 "orders_count": weekly_counts[day_number],
             }
         )
-
-    peak_order_time = max(
-        heatmap_data,
-        key=lambda item: item["orders_count"],
-        default=None,
-    )
 
     if peak_order_time is None:
         peak_day = "Неизвестный день"
@@ -383,7 +382,6 @@ def build_timing_summary(timing_rows):
         "peak_hour_text": peak_hour_text,
         "peak_orders_count": peak_orders_count,
         "weekly_activity": weekly_activity,
-        "heatmap_data": heatmap_data,
     }
 
 
