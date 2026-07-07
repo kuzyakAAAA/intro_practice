@@ -64,6 +64,8 @@ def render_page(**kwargs):
         "forgotten_products": None,
         "rhythm": None,
         "timing_summary": None,
+        "alternatives": None,
+        "selected_product": None,
         "final_prompt_text": None,
         "final_recommendation": None,
         "error": None,
@@ -211,6 +213,65 @@ def purchase_rhythm():
         )
 
 
+@app.route("/alternatives", methods=["POST"])
+def alternatives():
+    """Показывает привычные замены выбранного товара."""
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return render_page(
+            error="Сначала авторизуйтесь"
+        )
+
+    product_id_text = request.form.get(
+        "product_id",
+        "",
+    ).strip()
+
+    if not product_id_text.isdigit():
+        return render_page(
+            error="Не удалось определить выбранный товар"
+        )
+
+    product_id = int(product_id_text)
+
+    try:
+        rules = load_business_rules()
+
+        products = rules.get_user_history(user_id)
+
+        selected_product = next(
+            (
+                product
+                for product in products
+                if str(product.get("product_id")) == str(product_id)
+            ),
+            None,
+        )
+
+        if selected_product is None:
+            return render_page(
+                products=products,
+                error="Выбранный товар не найден в списке любимых",
+            )
+
+        alternatives_data = rules.get_personal_alternatives(
+            user_id=user_id,
+            product_id=product_id,
+        )
+
+        return render_page(
+            products=products,
+            selected_product=selected_product,
+            alternatives=alternatives_data,
+        )
+
+    except Exception as error:
+        return render_page(
+            error=f"Не удалось подобрать привычную замену: {error}"
+        )
+
+
 @app.route("/final-advice", methods=["POST"])
 def final_advice():
     """Формирует итоговые рекомендации GigaChat."""
@@ -313,6 +374,73 @@ def api_history():
         ), 500
 
 
+@app.route("/api/alternatives", methods=["POST"])
+def api_alternatives():
+    """API-вариант сервиса поиска привычной замены."""
+    user_id = get_current_user_id()
+
+    if not user_id:
+        return jsonify(
+            {"error": "Сначала авторизуйтесь"}
+        ), 403
+
+    data = request.get_json(silent=True) or {}
+
+    product_id_value = data.get(
+        "product_id",
+        request.form.get("product_id", ""),
+    )
+
+    try:
+        product_id = int(product_id_value)
+    except (TypeError, ValueError):
+        return jsonify(
+            {"error": "product_id должен быть целым числом"}
+        ), 400
+
+    try:
+        rules = load_business_rules()
+
+        products = rules.get_user_history(user_id)
+
+        selected_product = next(
+            (
+                product
+                for product in products
+                if str(product.get("product_id")) == str(product_id)
+            ),
+            None,
+        )
+
+        if selected_product is None:
+            return jsonify(
+                {
+                    "error": (
+                        "Выбранный товар не найден "
+                        "в списке любимых товаров"
+                    )
+                }
+            ), 404
+
+        alternatives_data = rules.get_personal_alternatives(
+            user_id=user_id,
+            product_id=product_id,
+        )
+
+        return jsonify(
+            {
+                "user_id": user_id,
+                "selected_product": selected_product,
+                "alternatives": alternatives_data,
+            }
+        )
+
+    except Exception as error:
+        return jsonify(
+            {"error": str(error)}
+        ), 500
+
+
 @app.route("/api/dashboard", methods=["POST"])
 def api_dashboard():
     """API-вариант полного аналитического кабинета."""
@@ -371,4 +499,8 @@ def api_dashboard():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        debug=True,
+        host="127.0.0.1",
+        port=5050,
+    )

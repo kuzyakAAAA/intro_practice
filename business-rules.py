@@ -33,6 +33,9 @@ LOGINOM_HISTORY_URL = f"{LOGINOM_BASE_URL}/GetUserHistory"
 LOGINOM_FORGOTTEN_URL = f"{LOGINOM_BASE_URL}/GetForgottenProducts"
 LOGINOM_RHYTHM_URL = f"{LOGINOM_BASE_URL}/GetPurchaseRhythm"
 LOGINOM_ORDER_TIMING_URL = f"{LOGINOM_BASE_URL}/GetOrderTiming"
+LOGINOM_ALTERNATIVES_URL = (
+    f"{LOGINOM_BASE_URL}/GetPersonalAlternatives"
+)
 
 
 # Нумерация order_dow в базе Instacart:
@@ -58,12 +61,26 @@ llm = GigaChat(
 )
 
 
-def call_loginom_service(url: str, user_id: int):
-    """Вызывает REST-метод Loginom и возвращает список строк."""
+def call_loginom_service(
+    url: str,
+    user_id: int,
+    product_id: int | None = None,
+):
+    """
+    Вызывает REST-метод Loginom и возвращает список строк.
+
+    Обычно передаётся только user_id.
+    Для GetPersonalAlternatives дополнительно передаётся product_id.
+    """
+    variables = {
+        "user_id": user_id
+    }
+
+    if product_id is not None:
+        variables["product_id"] = product_id
+
     payload = {
-        "Variables": {
-            "user_id": user_id
-        }
+        "Variables": variables
     }
 
     try:
@@ -364,6 +381,53 @@ def build_forgotten_products_text(rows):
         )
 
     return "\n".join(lines)
+
+
+def get_personal_alternatives(
+    user_id: int,
+    product_id: int,
+):
+    """
+    Возвращает знакомые пользователю альтернативы выбранного товара.
+
+    Пустой список не считается ошибкой: это означает, что пользователь
+    пока не покупал подходящих альтернатив.
+    """
+    rows = call_loginom_service(
+        LOGINOM_ALTERNATIVES_URL,
+        user_id=user_id,
+        product_id=product_id,
+    )
+
+    alternatives = []
+
+    for row in rows:
+        alternatives.append(
+            {
+                "product_id": to_int_or_none(
+                    row.get("product_id")
+                ),
+                "product_name": row.get(
+                    "product_name",
+                    "Неизвестный товар",
+                ),
+                "aisle": row.get("aisle", "—"),
+                "department": row.get("department", "—"),
+                "department_rus": row.get(
+                    "department_rus",
+                    "—",
+                ),
+                "times_bought": to_int_or_none(
+                    row.get("times_bought")
+                ) or 0,
+                "match_type": row.get(
+                    "match_type",
+                    "Знакомая альтернатива",
+                ),
+            }
+        )
+
+    return alternatives
 
 
 def get_purchase_rhythm(user_id: int):
